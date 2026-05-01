@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file, flash
+from flask import Flask, render_template, request, redirect, url_for, send_file, send_from_directory, flash
 from werkzeug.utils import secure_filename
 from pathlib import Path
 import os
@@ -17,6 +17,7 @@ UPLOAD_DIR = BASE_DIR / 'uploads'
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf', '.txt'}
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
@@ -24,6 +25,10 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
 
 def allowed_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
+
+
+def is_image_file(filename: str) -> bool:
+    return Path(filename).suffix.lower() in IMAGE_EXTENSIONS
 
 
 def current_ocr_settings() -> dict:
@@ -47,7 +52,7 @@ def index():
 def analyze():
     file = request.files.get('work_file')
     student_name = request.form.get('student_name', 'Не указан').strip() or 'Не указан'
-    work_type = request.form.get('work_type', 'Сочинение').strip() or 'Сочинение'
+    work_type = request.form.get('work_type', 'Письменная работа').strip() or 'Письменная работа'
     grade_level = request.form.get('grade_level', '5-11').strip() or '5-11'
     criteria_raw = request.form.get('criteria', '').strip()
 
@@ -83,6 +88,7 @@ def analyze():
         'criteria': criteria,
         'filename': file.filename,
         'stored_filename': saved_name,
+        'is_image': is_image_file(saved_name),
         'text': extracted_text,
         'analysis': analysis_result,
         'ocr': current_ocr_settings(),
@@ -91,12 +97,18 @@ def analyze():
     return redirect(url_for('result', submission_id=file_id))
 
 
+@app.route('/uploads/<path:filename>')
+def uploaded_file(filename: str):
+    return send_from_directory(UPLOAD_DIR, filename)
+
+
 @app.route('/result/<submission_id>')
 def result(submission_id: str):
     submission = get_submission(submission_id)
     if not submission:
         flash('Работа не найдена.')
         return redirect(url_for('index'))
+    submission['is_image'] = submission.get('is_image', is_image_file(submission.get('stored_filename', '')))
     return render_template('result.html', submission=submission)
 
 

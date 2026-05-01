@@ -1,66 +1,52 @@
 {% extends 'base.html' %}
 {% block content %}
 
-<section class="card" style="margin-bottom: 16px;">
-  <h2>AI OCR</h2>
-  <p><strong>Провайдер:</strong> {{ ocr.provider }}</p>
-  <p><strong>Модель:</strong> {{ ocr.model }}</p>
-  <p><strong>Endpoint:</strong> {{ ocr.endpoint }}</p>
-  <p class="muted">
-    {% if ocr.enabled %}
-      Распознавание фото и PDF выполняется vision-LLM через OpenAI-compatible API.
-    {% else %}
-      AI OCR пока выключен. Приложение автоматически подхватит настройки из файла .env после запуска.
-    {% endif %}
-  </p>
-</section>
-<section class="hero card">
-  <div>
-    <h1>ИИ-ассистент учителя для проверки письменных работ</h1>
+<section class="hero">
+  <div class="hero-copy">
+    <span class="eyebrow">Проверка письменных работ</span>
+    <h1>Загрузите фото работы, а система подготовит первичный разбор</h1>
     <p>
-      Загрузите работу ученика, и система сначала распознает рукописный или печатный текст с помощью ИИ,
-      а затем сформирует предварительную оценку, найденные проблемные места и персонализированную обратную связь.
+      Поддерживаются фотографии, PDF и текстовые файлы. После загрузки приложение распознает текст и сформирует оценку,
+      найденные проблемные места и рекомендации для ученика.
     </p>
   </div>
 </section>
 
-<section class="grid two-cols">
-  <form class="card form-card" action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
-    <h2>Новая проверка</h2>
-    <label>Ученик
-      <input name="student_name" placeholder="Например, Иван Сидоров">
-    </label>
-    <label>Тип работы
-      <input name="work_type" placeholder="Сочинение, диктант, эссе..." value="Сочинение">
-    </label>
-    <label>Класс
-      <input name="grade_level" placeholder="Например, 9" value="9">
-    </label>
-    <label>Критерии оценивания
-      <textarea name="criteria" rows="6" placeholder="Каждый критерий с новой строки&#10;Грамотность&#10;Логика изложения&#10;Оригинальность"></textarea>
-    </label>
-    <label>Файл работы
-      <input name="work_file" type="file" accept=".jpg,.jpeg,.png,.pdf,.txt" required>
-    </label>
-    <button type="submit">Проверить работу</button>
-    <p class="muted">JPG, PNG и PDF сначала читаются ИИ-моделью, после чего распознанный текст отправляется в модуль анализа.</p>
-  </form>
+<section class="upload-layout">
+  <form class="card upload-card" action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
+    <div class="upload-card__header">
+      <span class="upload-icon" aria-hidden="true">+</span>
+      <div>
+        <span class="upload-kicker">Быстрая загрузка</span>
+        <h2>Новая проверка</h2>
+        <p class="muted">Выберите фото, PDF или TXT-файл с работой ученика.</p>
+      </div>
+    </div>
 
-  <div class="card side-card">
-    <h2>Что умеет система</h2>
-    <ul>
-      <li>загрузка работ в формате JPG, PNG, PDF, TXT;</li>
-      <li>AI-распознавание рукописного и печатного текста;</li>
-      <li>предобработка изображений перед OCR;</li>
-      <li>анализ текста по критериям;</li>
-      <li>предварительная оценка по 5-балльной шкале;</li>
-      <li>история проверок и экспорт JSON-отчёта.</li>
-    </ul>
-  </div>
+    <label class="file-drop">
+      <img id="upload-preview-image" class="file-drop__image" src="" alt="Предпросмотр загруженного фото" hidden>
+      <input id="work-file" name="work_file" type="file" accept=".jpg,.jpeg,.png,.pdf,.txt" required>
+      <span class="file-drop__title">Нажмите, чтобы выбрать файл</span>
+      <span class="file-drop__hint">JPG, PNG, PDF или TXT</span>
+      <span id="upload-preview-name" class="file-drop__name"></span>
+      <span id="upload-preview-note" class="file-drop__note"></span>
+    </label>
+
+    <div class="upload-actions">
+      <button class="primary-button" type="submit">Проверить работу</button>
+      <p class="muted small-note">Дополнительные параметры не нужны: система сама подготовит черновой разбор.</p>
+    </div>
+  </form>
 </section>
 
-<section class="card">
-  <h2>История проверок</h2>
+<section class="history-card" aria-labelledby="history-title">
+  <div class="history-card__header">
+    <div>
+      <span class="history-label">Недавние результаты</span>
+      <h2 id="history-title">История проверок</h2>
+    </div>
+  </div>
+
   {% if submissions %}
     <div class="submission-list">
       {% for item in submissions %}
@@ -77,4 +63,55 @@
     <p class="muted">Пока проверок нет.</p>
   {% endif %}
 </section>
+
+<details class="system-details">
+  <summary>Техническая информация OCR</summary>
+  <div class="system-details__body">
+    <p><strong>Провайдер:</strong> {{ ocr.provider }}</p>
+    <p><strong>Модель:</strong> {{ ocr.model }}</p>
+    <p><strong>Endpoint:</strong> {{ ocr.endpoint }}</p>
+    <p class="muted">
+      {% if ocr.enabled %}
+        Распознавание фото и PDF выполняется vision-LLM через OpenAI-compatible API.
+      {% else %}
+        AI OCR пока выключен. Приложение подхватит настройки из файла .env после запуска.
+      {% endif %}
+    </p>
+  </div>
+</details>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const fileInput = document.querySelector('#work-file');
+  const previewImage = document.querySelector('#upload-preview-image');
+  const previewName = document.querySelector('#upload-preview-name');
+  const previewNote = document.querySelector('#upload-preview-note');
+
+  if (fileInput && previewImage && previewName && previewNote) {
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files && fileInput.files[0];
+
+      previewImage.hidden = true;
+      previewImage.removeAttribute('src');
+      previewName.textContent = '';
+      previewNote.textContent = '';
+
+      if (!file) {
+        return;
+      }
+
+      previewName.textContent = file.name;
+
+      if (file.type.startsWith('image/')) {
+        previewImage.src = URL.createObjectURL(file);
+        previewImage.hidden = false;
+        previewImage.onload = () => URL.revokeObjectURL(previewImage.src);
+        previewNote.textContent = 'Фото готово к проверке.';
+      } else {
+        previewNote.textContent = 'Для этого формата предпросмотр недоступен, файл готов к отправке.';
+      }
+    });
+  }
+</script>
 {% endblock %}

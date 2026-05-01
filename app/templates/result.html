@@ -1,20 +1,99 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="grid two-cols">
-  <div class="card">
-    <h1>Результат проверки</h1>
-    <p><strong>Ученик:</strong> {{ submission.student_name }}</p>
-    <p><strong>Тип работы:</strong> {{ submission.work_type }}</p>
-    <p><strong>Класс:</strong> {{ submission.grade_level }}</p>
-    <p><strong>Исходный файл:</strong> {{ submission.filename }}</p>
-    <p><strong>OCR:</strong> {{ submission.ocr.provider }} / {{ submission.ocr.model }}</p>
-    <div class="grade-big">{{ submission.analysis.grade }}/5</div>
-    <p>{{ submission.analysis.summary }}</p>
-    <a class="button-secondary" href="{{ url_for('report', submission_id=submission.id) }}">Скачать JSON-отчёт</a>
+<section class="result-head">
+  <div>
+    <span class="eyebrow">Итоги проверки</span>
+    <h1>Разбор письменной работы</h1>
+  </div>
+  <a class="button-secondary" href="{{ url_for('report', submission_id=submission.id) }}">Скачать JSON-отчет</a>
+</section>
+
+<section class="result-priority">
+  <div class="card criteria-panel">
+    <div class="criteria-grade">
+      <span>Итоговая оценка</span>
+      <strong>{{ submission.analysis.grade }}/5</strong>
+    </div>
+
+    <div class="section-title">
+      <span class="section-marker marker-mint"></span>
+      <div>
+        <h2>Критерии</h2>
+        <p class="muted">Оценка по ключевым аспектам работы.</p>
+      </div>
+    </div>
+
+    <div class="criteria-list">
+      {% for item in submission.analysis.criteria_scores %}
+        <article class="criterion-card">
+          <div class="criterion-card__top">
+            <strong>{{ item.criterion }}</strong>
+            <span class="score-pill">{{ item.score }}/5</span>
+          </div>
+          <div class="score-track" aria-hidden="true">
+            <span style="width: {{ item.score * 20 }}%;"></span>
+          </div>
+          <p>{{ item.explanation }}</p>
+        </article>
+      {% endfor %}
+    </div>
   </div>
 
+  <div class="card issues-panel">
+    <div class="section-title">
+      <span class="section-marker marker-amber"></span>
+      <div>
+        <h2>Найденные проблемные места</h2>
+        <p class="muted">Фрагменты, на которые стоит обратить внимание.</p>
+      </div>
+    </div>
+
+    {% if submission.analysis.detected_issues %}
+      <div class="issues-list">
+        {% for issue in submission.analysis.detected_issues %}
+          <article class="issue-card issue-card--featured">
+            <div class="issue-card__type">{{ issue.type|capitalize }}</div>
+            <p>{{ issue.fragment }}</p>
+            <div class="issue-card__hint">{{ issue.hint }}</div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <strong>Проблемные фрагменты не найдены</strong>
+        <p class="muted">В распознанном тексте нет явных мест, требующих отдельной пометки.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="result-overview">
+  <div class="card work-preview-card">
+    <div class="section-title compact-title">
+      <span class="section-marker marker-blue"></span>
+      <h2>Загруженная работа</h2>
+    </div>
+    {% if submission.is_image %}
+      <img
+        class="submitted-image"
+        src="{{ url_for('uploaded_file', filename=submission.stored_filename) }}"
+        alt="Загруженная работа"
+      >
+    {% else %}
+      <div class="file-placeholder">
+        <strong>{{ submission.filename }}</strong>
+        <p class="muted">Предпросмотр доступен для JPG и PNG. Текст распознан и показан ниже.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="result-secondary">
   <div class="card">
-    <h2>Метрики</h2>
+    <div class="section-title compact-title">
+      <span class="section-marker marker-blue"></span>
+      <h2>Метрики</h2>
+    </div>
     <div class="metrics">
       <div class="metric"><span>Слов</span><strong>{{ submission.analysis.metrics.words }}</strong></div>
       <div class="metric"><span>Предложений</span><strong>{{ submission.analysis.metrics.sentences }}</strong></div>
@@ -22,52 +101,23 @@
       <div class="metric"><span>Проблемных мест</span><strong>{{ submission.analysis.detected_issues|length }}</strong></div>
     </div>
   </div>
-</section>
-
-<section class="grid two-cols">
-  <div class="card">
-    <h2>Критерии</h2>
-    {% for item in submission.analysis.criteria_scores %}
-      <div class="criterion">
-        <div class="criterion-header">
-          <strong>{{ item.criterion }}</strong>
-          <span class="grade-chip">{{ item.score }}/5</span>
-        </div>
-        <p class="muted">{{ item.explanation }}</p>
-      </div>
-    {% endfor %}
-  </div>
 
   <div class="card">
-    <h2>Рекомендации ученику</h2>
-    <ul>
+    <div class="section-title compact-title">
+      <span class="section-marker marker-mint"></span>
+      <h2>Рекомендации</h2>
+    </div>
+    <ul class="recommendation-list">
       {% for rec in submission.analysis.recommendations %}
         <li>{{ rec }}</li>
       {% endfor %}
     </ul>
-    <p><strong>Развернутая обратная связь:</strong> {{ submission.analysis.feedback }}</p>
+    <p><strong>Обратная связь:</strong> {{ submission.analysis.feedback }}</p>
   </div>
 </section>
 
-<section class="grid two-cols">
-  <div class="card">
-    <h2>Найденные проблемные места</h2>
-    {% if submission.analysis.detected_issues %}
-      {% for issue in submission.analysis.detected_issues %}
-        <div class="issue-card">
-          <strong>{{ issue.type|capitalize }}</strong>
-          <p>{{ issue.fragment }}</p>
-          <div class="muted">{{ issue.hint }}</div>
-        </div>
-      {% endfor %}
-    {% else %}
-      <p class="muted">Подозрительных фрагментов не найдено.</p>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <h2>Распознанный текст</h2>
-    <pre class="text-view">{{ submission.text }}</pre>
-  </div>
-</section>
+<details class="recognized-text">
+  <summary>Распознанный текст</summary>
+  <pre class="text-view">{{ submission.text }}</pre>
+</details>
 {% endblock %}
