@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="grid two-cols">
+  <div class="card">
+    <h1>Результат проверки</h1>
+    <p><strong>Ученик:</strong> {{ submission.student_name }}</p>
+    <p><strong>Тип работы:</strong> {{ submission.work_type }}</p>
+    <p><strong>Класс:</strong> {{ submission.grade_level }}</p>
+    <p><strong>Исходный файл:</strong> {{ submission.filename }}</p>
+    <p><strong>OCR:</strong> {{ submission.ocr.provider }} / {{ submission.ocr.model }}</p>
+    <div class="grade-big">{{ submission.analysis.grade }}/5</div>
+    <p>{{ submission.analysis.summary }}</p>
+    <a class="button-secondary" href="{{ url_for('report', submission_id=submission.id) }}">Скачать JSON-отчёт</a>
+  </div>
+
+  <div class="card">
+    <h2>Метрики</h2>
+    <div class="metrics">
+      <div class="metric"><span>Слов</span><strong>{{ submission.analysis.metrics.words }}</strong></div>
+      <div class="metric"><span>Предложений</span><strong>{{ submission.analysis.metrics.sentences }}</strong></div>
+      <div class="metric"><span>Читаемость</span><strong>{{ submission.analysis.metrics.readability }}</strong></div>
+      <div class="metric"><span>Проблемных мест</span><strong>{{ submission.analysis.detected_issues|length }}</strong></div>
+    </div>
+  </div>
+</section>
+
+<section class="grid two-cols">
+  <div class="card">
+    <h2>Критерии</h2>
+    {% for item in submission.analysis.criteria_scores %}
+      <div class="criterion">
+        <div class="criterion-header">
+          <strong>{{ item.criterion }}</strong>
+          <span class="grade-chip">{{ item.score }}/5</span>
+        </div>
+        <p class="muted">{{ item.explanation }}</p>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>Рекомендации ученику</h2>
+    <ul>
+      {% for rec in submission.analysis.recommendations %}
+        <li>{{ rec }}</li>
+      {% endfor %}
+    </ul>
+    <p><strong>Развернутая обратная связь:</strong> {{ submission.analysis.feedback }}</p>
+  </div>
+</section>
+
+<section class="grid two-cols">
+  <div class="card">
+    <h2>Найденные проблемные места</h2>
+    {% if submission.analysis.detected_issues %}
+      {% for issue in submission.analysis.detected_issues %}
+        <div class="issue-card">
+          <strong>{{ issue.type|capitalize }}</strong>
+          <p>{{ issue.fragment }}</p>
+          <div class="muted">{{ issue.hint }}</div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">Подозрительных фрагментов не найдено.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Распознанный текст</h2>
+    <pre class="text-view">{{ submission.text }}</pre>
+  </div>
+</section>
+{% endblock %}

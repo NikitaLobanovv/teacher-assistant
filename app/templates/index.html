@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<section class="card" style="margin-bottom: 16px;">
+  <h2>AI OCR</h2>
+  <p><strong>Провайдер:</strong> {{ ocr.provider }}</p>
+  <p><strong>Модель:</strong> {{ ocr.model }}</p>
+  <p><strong>Endpoint:</strong> {{ ocr.endpoint }}</p>
+  <p class="muted">
+    {% if ocr.enabled %}
+      Распознавание фото и PDF выполняется vision-LLM через OpenAI-compatible API.
+    {% else %}
+      AI OCR пока выключен. Приложение автоматически подхватит настройки из файла .env после запуска.
+    {% endif %}
+  </p>
+</section>
+<section class="hero card">
+  <div>
+    <h1>ИИ-ассистент учителя для проверки письменных работ</h1>
+    <p>
+      Загрузите работу ученика, и система сначала распознает рукописный или печатный текст с помощью ИИ,
+      а затем сформирует предварительную оценку, найденные проблемные места и персонализированную обратную связь.
+    </p>
+  </div>
+</section>
+
+<section class="grid two-cols">
+  <form class="card form-card" action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
+    <h2>Новая проверка</h2>
+    <label>Ученик
+      <input name="student_name" placeholder="Например, Иван Сидоров">
+    </label>
+    <label>Тип работы
+      <input name="work_type" placeholder="Сочинение, диктант, эссе..." value="Сочинение">
+    </label>
+    <label>Класс
+      <input name="grade_level" placeholder="Например, 9" value="9">
+    </label>
+    <label>Критерии оценивания
+      <textarea name="criteria" rows="6" placeholder="Каждый критерий с новой строки&#10;Грамотность&#10;Логика изложения&#10;Оригинальность"></textarea>
+    </label>
+    <label>Файл работы
+      <input name="work_file" type="file" accept=".jpg,.jpeg,.png,.pdf,.txt" required>
+    </label>
+    <button type="submit">Проверить работу</button>
+    <p class="muted">JPG, PNG и PDF сначала читаются ИИ-моделью, после чего распознанный текст отправляется в модуль анализа.</p>
+  </form>
+
+  <div class="card side-card">
+    <h2>Что умеет система</h2>
+    <ul>
+      <li>загрузка работ в формате JPG, PNG, PDF, TXT;</li>
+      <li>AI-распознавание рукописного и печатного текста;</li>
+      <li>предобработка изображений перед OCR;</li>
+      <li>анализ текста по критериям;</li>
+      <li>предварительная оценка по 5-балльной шкале;</li>
+      <li>история проверок и экспорт JSON-отчёта.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card">
+  <h2>История проверок</h2>
+  {% if submissions %}
+    <div class="submission-list">
+      {% for item in submissions %}
+        <a class="submission-item" href="{{ url_for('result', submission_id=item.id) }}">
+          <div>
+            <strong>{{ item.student_name }}</strong>
+            <div class="muted">{{ item.work_type }} · {{ item.grade_level }} класс</div>
+          </div>
+          <div class="grade-chip">{{ item.analysis.grade }}/5</div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Пока проверок нет.</p>
+  {% endif %}
+</section>
+{% endblock %}
