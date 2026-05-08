@@ -1,5 +1,113 @@
 [
   {
+    "id": "ead933ce-1eb3-4043-9809-fe33e0fefa14",
+    "student_name": "Не указан",
+    "work_type": "Письменная работа",
+    "grade_level": "5-11",
+    "criteria": [],
+    "filename": "0_0.jpg",
+    "stored_filename": "ead933ce-1eb3-4043-9809-fe33e0fefa14.jpg",
+    "is_image": true,
+    "text": "LLM OCR НЕ НАСТРОЕН.\n\nСейчас проект ожидает AI-распознавание через vision-модель.\nДобавьте или проверьте настройки в .env:\nOCR_PROVIDER=openai_compatible\nOPENAI_BASE_URL=http://127.0.0.1:3000/v1\nOCR_MODEL=allenai/olmOCR-7B-0225-preview\n\nФайл: ead933ce-1eb3-4043-9809-fe33e0fefa14.jpg",
+    "analysis": {
+      "summary": "Не удалось получить распознанный текст от OCR-модуля.",
+      "detected_issues": [],
+      "criteria_scores": [
+        {
+          "id": 1,
+          "criterion": "Грамотность",
+          "score": 5,
+          "explanation": "Оценка зависит от количества найденных орфографических и пунктуационных проблем."
+        },
+        {
+          "id": 2,
+          "criterion": "Логика изложения",
+          "score": 3,
+          "explanation": "Проверяется наличие вступления, основной части и завершения."
+        },
+        {
+          "id": 3,
+          "criterion": "Полнота ответа",
+          "score": 3,
+          "explanation": "Критерий оценивает, насколько полно раскрыта тема."
+        }
+      ],
+      "recommendations": [
+        "Проверьте настройки .env и доступность vision-модели.",
+        "Повторно загрузите изображение после настройки OCR endpoint."
+      ],
+      "feedback": "Система не смогла выполнить AI-распознавание текста, поэтому полноценная проверка работы недоступна.",
+      "metrics": {
+        "words": 0,
+        "sentences": 0,
+        "readability": 0.0,
+        "repetitions": []
+      },
+      "grade": 1
+    },
+    "llm_mode": "gpt_api",
+    "ocr": {
+      "provider": "gpt_api",
+      "model": "gpt-4.1-mini",
+      "endpoint": "https://api.openai.com/v1",
+      "enabled": false
+    }
+  },
+  {
+    "id": "01c0b4e8-ec1d-4e10-af84-36c0041e56e6",
+    "student_name": "Не указан",
+    "work_type": "Письменная работа",
+    "grade_level": "5-11",
+    "criteria": [],
+    "filename": "0_0.jpg",
+    "stored_filename": "01c0b4e8-ec1d-4e10-af84-36c0041e56e6.jpg",
+    "is_image": true,
+    "text": "LLM OCR НЕ НАСТРОЕН.\n\nСейчас проект ожидает AI-распознавание через vision-модель.\nДобавьте или проверьте настройки в .env:\nOCR_PROVIDER=openai_compatible\nOPENAI_BASE_URL=http://127.0.0.1:3000/v1\nOCR_MODEL=allenai/olmOCR-7B-0225-preview\n\nФайл: 01c0b4e8-ec1d-4e10-af84-36c0041e56e6.jpg",
+    "analysis": {
+      "summary": "Не удалось получить распознанный текст от OCR-модуля.",
+      "detected_issues": [],
+      "criteria_scores": [
+        {
+          "id": 1,
+          "criterion": "Грамотность",
+          "score": 5,
+          "explanation": "Оценка зависит от количества найденных орфографических и пунктуационных проблем."
+        },
+        {
+          "id": 2,
+          "criterion": "Логика изложения",
+          "score": 3,
+          "explanation": "Проверяется наличие вступления, основной части и завершения."
+        },
+        {
+          "id": 3,
+          "criterion": "Полнота ответа",
+          "score": 3,
+          "explanation": "Критерий оценивает, насколько полно раскрыта тема."
+        }
+      ],
+      "recommendations": [
+        "Проверьте настройки .env и доступность vision-модели.",
+        "Повторно загрузите изображение после настройки OCR endpoint."
+      ],
+      "feedback": "Система не смогла выполнить AI-распознавание текста, поэтому полноценная проверка работы недоступна.",
+      "metrics": {
+        "words": 0,
+        "sentences": 0,
+        "readability": 0.0,
+        "repetitions": []
+      },
+      "grade": 1
+    },
+    "llm_mode": "gpt_api",
+    "ocr": {
+      "provider": "gpt_api",
+      "model": "gpt-4.1-mini",
+      "endpoint": "https://api.openai.com/v1",
+      "enabled": false
+    }
+  },
+  {
     "id": "b1c2ab96-4cff-4491-a56a-3b40822e29f1",
     "student_name": "Не указан",
     "work_type": "Письменная работа",

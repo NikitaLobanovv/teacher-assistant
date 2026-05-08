@@ -32,6 +32,24 @@
       <span id="upload-preview-note" class="file-drop__note"></span>
     </label>
 
+    <fieldset class="mode-picker">
+      <legend>Режим проверки</legend>
+      <label class="mode-option">
+        <input type="radio" name="llm_mode" value="local_llm" checked>
+        <span>
+          <strong>Локальная LLM</strong>
+          <small>OCR и проверка идут через локальный OpenAI-compatible endpoint</small>
+        </span>
+      </label>
+      <label class="mode-option">
+        <input type="radio" name="llm_mode" value="gpt_api">
+        <span>
+          <strong>GPT API</strong>
+          <small>OCR и проверка отправляются в ChatGPT/OpenAI API</small>
+        </span>
+      </label>
+    </fieldset>
+
     <div class="upload-actions">
       <button class="primary-button" type="submit">Проверить работу</button>
       <p class="muted small-note">Дополнительные параметры не нужны: система сама подготовит черновой разбор.</p>
@@ -70,6 +88,10 @@
     <p><strong>Провайдер:</strong> {{ ocr.provider }}</p>
     <p><strong>Модель:</strong> {{ ocr.model }}</p>
     <p><strong>Endpoint:</strong> {{ ocr.endpoint }}</p>
+    <p><strong>Local analysis model:</strong> {{ llm.local_model }}</p>
+    <p><strong>Local analysis endpoint:</strong> {{ llm.local_endpoint }}</p>
+    <p><strong>GPT analysis model:</strong> {{ llm.gpt_model }}</p>
+    <p><strong>GPT endpoint:</strong> {{ llm.gpt_endpoint }}</p>
     <p class="muted">
       {% if ocr.enabled %}
         Распознавание фото и PDF выполняется vision-LLM через OpenAI-compatible API.

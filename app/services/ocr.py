@@ -22,9 +22,11 @@ load_env()
 MAX_PAGES = int(os.getenv("OCR_MAX_PAGES", "5"))
 MAX_IMAGE_SIDE = int(os.getenv("OCR_MAX_IMAGE_SIDE", "1600"))
 DEFAULT_OCR_MODEL = os.getenv("OCR_MODEL", "gpt-4.1-mini")
+DEFAULT_GPT_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_GPT_VISION_MODEL = os.getenv("GPT_VISION_MODEL", "gpt-4.1-mini")
 
 
-def extract_text_from_file(path: Path) -> str:
+def extract_text_from_file(path: Path, llm_mode: str = "local_llm") -> str:
     """Extract text from txt/image/pdf via an LLM OCR provider."""
     suffix = path.suffix.lower()
 
@@ -34,8 +36,8 @@ def extract_text_from_file(path: Path) -> str:
     if suffix not in {".jpg", ".jpeg", ".png", ".pdf"}:
         return f"Неподдерживаемый формат файла: {path.suffix}"
 
-    provider = os.getenv("OCR_PROVIDER", "").strip().lower()
-    if provider not in {"openai", "openai_compatible"}:
+    settings = _ocr_api_settings(llm_mode)
+    if not settings["enabled"]:
         return (
             "LLM OCR НЕ НАСТРОЕН.\n\n"
             "Сейчас проект ожидает AI-распознавание через vision-модель.\n"
@@ -47,12 +49,12 @@ def extract_text_from_file(path: Path) -> str:
         )
 
     try:
-        return _extract_text_with_llm(path)
+        return _extract_text_with_llm(path, settings)
     except Exception as exc:  # pragma: no cover
         return _ocr_error_message(path, str(exc))
 
 
-def _extract_text_with_llm(path: Path) -> str:
+def _extract_text_with_llm(path: Path, settings: dict[str, str | bool]) -> str:
     if path.suffix.lower() == ".pdf":
         images = _render_pdf_to_images(path)
     else:
@@ -67,6 +69,7 @@ def _extract_text_with_llm(path: Path) -> str:
             page_number=page_index,
             total_pages=len(images),
             file_name=path.name,
+            settings=settings,
         )
         chunks.append(f"--- Страница {page_index} ---\n{page_text.strip()}")
 
@@ -110,10 +113,10 @@ def _prepare_image(image: Image.Image) -> Image.Image:
     return gray.convert("RGB")
 
 
-def _run_vision_ocr(image: Image.Image, page_number: int, total_pages: int, file_name: str) -> str:
-    base_url = os.getenv("OPENAI_BASE_URL", "").rstrip("/")
-    api_key = os.getenv("OPENAI_API_KEY", "EMPTY")
-    model = os.getenv("OCR_MODEL", DEFAULT_OCR_MODEL)
+def _run_vision_ocr(image: Image.Image, page_number: int, total_pages: int, file_name: str, settings: dict[str, str | bool]) -> str:
+    base_url = str(settings["base_url"]).rstrip("/")
+    api_key = str(settings["api_key"])
+    model = str(settings["model"])
 
     if not base_url:
         raise RuntimeError("OPENAI_BASE_URL не задан.")
@@ -198,6 +201,35 @@ def _image_to_base64(image: Image.Image) -> str:
     buffer = BytesIO()
     image.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+def _ocr_api_settings(llm_mode: str) -> dict[str, str | bool]:
+    mode = (llm_mode or "local_llm").strip().lower()
+    if mode == "gpt_api":
+        api_key = _real_api_key(os.getenv("GPT_API_KEY") or os.getenv("OPENAI_API_KEY", ""))
+        base_url = os.getenv("GPT_BASE_URL", DEFAULT_GPT_BASE_URL).strip()
+        return {
+            "enabled": bool(api_key and base_url),
+            "mode": "gpt_api",
+            "base_url": base_url,
+            "api_key": api_key,
+            "model": os.getenv("GPT_VISION_MODEL", DEFAULT_GPT_VISION_MODEL),
+        }
+
+    provider = os.getenv("OCR_PROVIDER", "").strip().lower()
+    base_url = os.getenv("OPENAI_BASE_URL", "").strip()
+    return {
+        "enabled": provider in {"openai", "openai_compatible"} and bool(base_url),
+        "mode": "local_llm",
+        "base_url": base_url,
+        "api_key": os.getenv("OPENAI_API_KEY", "EMPTY"),
+        "model": os.getenv("OCR_MODEL", DEFAULT_OCR_MODEL),
+    }
+
+
+def _real_api_key(value: str) -> str:
+    value = (value or "").strip()
+    return "" if value.upper() == "EMPTY" else value
 
 
 def _ocr_error_message(path: Path, error: str) -> str:

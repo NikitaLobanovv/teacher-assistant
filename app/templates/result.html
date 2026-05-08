@@ -4,6 +4,7 @@
   <div>
     <span class="eyebrow">Итоги проверки</span>
     <h1>Разбор письменной работы</h1>
+    <p class="muted">Режим проверки: {{ 'GPT API' if submission.llm_mode == 'gpt_api' else 'Локальная LLM' }}</p>
   </div>
   <a class="button-secondary" href="{{ url_for('report', submission_id=submission.id) }}">Скачать JSON-отчет</a>
 </section>

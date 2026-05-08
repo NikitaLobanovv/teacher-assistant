@@ -269,6 +269,56 @@ h2 {
   margin-top: 22px;
 }
 
+.mode-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.mode-picker legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: #344054;
+  font-weight: 800;
+}
+
+.mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+}
+
+.mode-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+}
+
+.mode-option input {
+  width: auto;
+  margin: 3px 0 0;
+}
+
+.mode-option strong,
+.mode-option small {
+  display: block;
+}
+
+.mode-option small {
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .submitted-image {
   display: block;
   width: 100%;
@@ -746,6 +796,7 @@ ul { padding-left: 20px; }
   .file-drop { min-height: 240px; padding: 22px; }
   .file-drop__image { max-height: 260px; margin-bottom: 16px; }
   .file-drop__title { font-size: 21px; }
+  .mode-picker { grid-template-columns: 1fr; }
   .submission-list { grid-template-columns: 1fr; max-height: 260px; }
   .submission-item { align-items: flex-start; }
   .grade-big { font-size: 42px; }

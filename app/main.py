@@ -31,7 +31,17 @@ def is_image_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in IMAGE_EXTENSIONS
 
 
-def current_ocr_settings() -> dict:
+def current_ocr_settings(llm_mode: str = 'local_llm') -> dict:
+    if llm_mode == 'gpt_api':
+        base_url = os.getenv('GPT_BASE_URL', 'https://api.openai.com/v1').strip()
+        api_key = (os.getenv('GPT_API_KEY') or os.getenv('OPENAI_API_KEY', '')).strip()
+        return {
+            'provider': 'gpt_api',
+            'model': os.getenv('GPT_VISION_MODEL', 'gpt-4.1-mini'),
+            'endpoint': base_url if base_url else 'not set',
+            'enabled': bool(api_key and api_key.upper() != 'EMPTY'),
+        }
+
     provider = (os.getenv('OCR_PROVIDER', 'disabled') or 'disabled').strip()
     base_url = os.getenv('OPENAI_BASE_URL', '').strip()
     return {
@@ -42,10 +52,23 @@ def current_ocr_settings() -> dict:
     }
 
 
+def current_llm_settings() -> dict:
+    local_base_url = os.getenv('ANALYSIS_LOCAL_BASE_URL', os.getenv('OPENAI_BASE_URL', '')).strip()
+    gpt_base_url = os.getenv('GPT_BASE_URL', 'https://api.openai.com/v1').strip()
+    gpt_key = (os.getenv('GPT_API_KEY') or os.getenv('OPENAI_API_KEY', '')).strip()
+    return {
+        'local_model': os.getenv('ANALYSIS_LOCAL_MODEL', os.getenv('OCR_MODEL', 'local-model')),
+        'local_endpoint': local_base_url if local_base_url else 'not set',
+        'gpt_model': os.getenv('GPT_ANALYSIS_MODEL', os.getenv('ANALYSIS_MODEL', 'gpt-4.1-mini')),
+        'gpt_endpoint': gpt_base_url if gpt_base_url else 'not set',
+        'gpt_enabled': bool(gpt_key and gpt_key.upper() != 'EMPTY'),
+    }
+
+
 @app.route('/')
 def index():
     submissions = list_submissions()
-    return render_template('index.html', submissions=submissions, ocr=current_ocr_settings())
+    return render_template('index.html', submissions=submissions, ocr=current_ocr_settings(), llm=current_llm_settings())
 
 
 @app.route('/analyze', methods=['POST'])
@@ -55,6 +78,9 @@ def analyze():
     work_type = request.form.get('work_type', 'Письменная работа').strip() or 'Письменная работа'
     grade_level = request.form.get('grade_level', '5-11').strip() or '5-11'
     criteria_raw = request.form.get('criteria', '').strip()
+    llm_mode = request.form.get('llm_mode', 'local_llm').strip()
+    if llm_mode not in {'local_llm', 'gpt_api'}:
+        llm_mode = 'local_llm'
 
     if not file or not file.filename:
         flash('Выберите файл для загрузки.')
@@ -71,13 +97,14 @@ def analyze():
     file.save(saved_path)
 
     criteria = [item.strip() for item in criteria_raw.splitlines() if item.strip()]
-    extracted_text = extract_text_from_file(saved_path)
+    extracted_text = extract_text_from_file(saved_path, llm_mode=llm_mode)
     analysis_result = analyze_text(
         extracted_text,
         student_name=student_name,
         work_type=work_type,
         grade_level=grade_level,
         criteria=criteria,
+        llm_mode=llm_mode,
     )
 
     submission = {
@@ -91,7 +118,8 @@ def analyze():
         'is_image': is_image_file(saved_name),
         'text': extracted_text,
         'analysis': analysis_result,
-        'ocr': current_ocr_settings(),
+        'llm_mode': llm_mode,
+        'ocr': current_ocr_settings(llm_mode),
     }
     save_submission(submission)
     return redirect(url_for('result', submission_id=file_id))
