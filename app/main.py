@@ -6,7 +6,7 @@ import uuid
 
 from services.config import load_env
 from services.ocr import extract_text_from_file
-from services.analyzer import analyze_text, analyze_file_with_yandex
+from services.analyzer import analyze_text
 from services.storage import save_submission, list_submissions, get_submission
 from services.report import generate_json_report
 
@@ -36,12 +36,12 @@ def current_ocr_settings(llm_mode: str = 'local_llm') -> dict:
         base_url = os.getenv('YANDEX_BASE_URL', 'https://ai.api.cloud.yandex.net/v1').strip()
         api_key = os.getenv('YANDEX_API_KEY', '').strip()
         folder_id = os.getenv('YANDEX_FOLDER_ID', '').strip()
-        return {
-            'provider': 'yandex_aistudio',
-            'model': os.getenv('YANDEX_VISION_MODEL') or (f'gpt://{folder_id}/gemma-3-27b-it' if folder_id else 'not set'),
-            'endpoint': base_url if base_url else 'not set',
-            'enabled': bool(api_key and api_key.upper() != 'EMPTY' and folder_id),
-        }
+    return {
+        'provider': 'yandex_aistudio',
+        'model': os.getenv('YANDEX_OCR_MODEL', 'handwritten'),
+        'endpoint': os.getenv('YANDEX_OCR_BASE_URL', 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText').strip(),
+        'enabled': bool(api_key and api_key.upper() != 'EMPTY' and folder_id),
+    }
 
     provider = (os.getenv('OCR_PROVIDER', 'disabled') or 'disabled').strip()
     base_url = os.getenv('OPENAI_BASE_URL', '').strip()
@@ -99,24 +99,15 @@ def analyze():
     file.save(saved_path)
 
     criteria = [item.strip() for item in criteria_raw.splitlines() if item.strip()]
-    if llm_mode == 'yandex_aistudio':
-        extracted_text, analysis_result = analyze_file_with_yandex(
-            saved_path,
-            student_name=student_name,
-            work_type=work_type,
-            grade_level=grade_level,
-            criteria=criteria,
-        )
-    else:
-        extracted_text = extract_text_from_file(saved_path, llm_mode=llm_mode)
-        analysis_result = analyze_text(
-            extracted_text,
-            student_name=student_name,
-            work_type=work_type,
-            grade_level=grade_level,
-            criteria=criteria,
-            llm_mode=llm_mode,
-        )
+    extracted_text = extract_text_from_file(saved_path, llm_mode=llm_mode)
+    analysis_result = analyze_text(
+        extracted_text,
+        student_name=student_name,
+        work_type=work_type,
+        grade_level=grade_level,
+        criteria=criteria,
+        llm_mode=llm_mode,
+    )
 
     submission = {
         'id': file_id,

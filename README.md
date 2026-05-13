@@ -40,11 +40,12 @@ ANALYSIS_LOCAL_MODEL=local-model
 YANDEX_BASE_URL=https://ai.api.cloud.yandex.net/v1
 YANDEX_API_KEY=
 YANDEX_FOLDER_ID=
-YANDEX_VISION_MODEL=
+YANDEX_OCR_BASE_URL=https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText
+YANDEX_OCR_MODEL=handwritten
 YANDEX_ANALYSIS_MODEL=
 ```
 
-В режиме Yandex AI Studio приложение отправляет один vision-запрос: модель получает страницы работы и сразу возвращает JSON с распознанным текстом, оценкой, проблемными местами и рекомендациями.
+В режиме Yandex приложение делает два запроса: сначала Yandex Vision OCR распознаёт рукописный текст моделью `handwritten`, затем Yandex AI Studio анализирует распознанный текст и возвращает оценку, проблемные места и рекомендации.
 
 ## Где находится интеграция
 

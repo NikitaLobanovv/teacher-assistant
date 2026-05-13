@@ -24,6 +24,7 @@ MAX_IMAGE_SIDE = int(os.getenv("OCR_MAX_IMAGE_SIDE", "1600"))
 LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "0"))
 DEFAULT_OCR_MODEL = os.getenv("OCR_MODEL", "gpt-4.1-mini")
 DEFAULT_YANDEX_BASE_URL = "https://ai.api.cloud.yandex.net/v1"
+DEFAULT_YANDEX_OCR_URL = "https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText"
 
 
 def extract_text_from_file(path: Path, llm_mode: str = "local_llm") -> str:
@@ -114,6 +115,9 @@ def _prepare_image(image: Image.Image) -> Image.Image:
 
 
 def _run_vision_ocr(image: Image.Image, page_number: int, total_pages: int, file_name: str, settings: dict[str, str | bool]) -> str:
+    if settings.get("mode") == "yandex_aistudio":
+        return _run_yandex_vision_ocr(image, page_number, total_pages, file_name, settings)
+
     base_url = str(settings["base_url"]).rstrip("/")
     api_key = str(settings["api_key"])
     model = str(settings["model"])
@@ -186,6 +190,61 @@ def _run_vision_ocr(image: Image.Image, page_number: int, total_pages: int, file
     return str(content).strip()
 
 
+def _run_yandex_vision_ocr(image: Image.Image, page_number: int, total_pages: int, file_name: str, settings: dict[str, str | bool]) -> str:
+    endpoint = str(settings["base_url"]).strip()
+    api_key = str(settings["api_key"])
+    model = str(settings["model"])
+
+    image_b64 = _image_to_base64(image)
+    headers = {
+        "Authorization": f"Api-Key {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "mimeType": "PNG",
+        "languageCodes": ["ru", "en"],
+        "model": model,
+        "content": image_b64,
+    }
+
+    response = requests.post(
+        endpoint,
+        headers=headers,
+        data=json.dumps(payload),
+        timeout=LLM_REQUEST_TIMEOUT or None,
+    )
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        raise RuntimeError(f"{exc}. Response body: {response.text[:2000]}") from exc
+
+    data = response.json()
+    text = _extract_yandex_ocr_text(data)
+    if not text:
+        raise RuntimeError(f"Yandex Vision OCR returned empty text. Response body: {json.dumps(data, ensure_ascii=False)[:2000]}")
+
+    return text.strip()
+
+
+def _extract_yandex_ocr_text(data: dict) -> str:
+    annotation = data.get("result", {}).get("textAnnotation", {})
+    full_text = annotation.get("fullText")
+    if full_text:
+        return str(full_text)
+
+    lines: list[str] = []
+    for block in annotation.get("blocks", []) or []:
+        for line in block.get("lines", []) or []:
+            line_text = line.get("text")
+            if line_text:
+                lines.append(str(line_text))
+                continue
+            words = [str(word.get("text", "")) for word in line.get("words", []) or [] if word.get("text")]
+            if words:
+                lines.append(" ".join(words))
+    return "\n".join(lines)
+
+
 def _build_ocr_prompt(page_number: int, total_pages: int, file_name: str, image_size: Tuple[int, int]) -> str:
     width, height = image_size
     return (
@@ -210,8 +269,8 @@ def _ocr_api_settings(llm_mode: str) -> dict[str, str | bool]:
     if mode == "yandex_aistudio":
         api_key = _real_api_key(os.getenv("YANDEX_API_KEY", ""))
         folder_id = os.getenv("YANDEX_FOLDER_ID", "").strip()
-        base_url = os.getenv("YANDEX_BASE_URL", DEFAULT_YANDEX_BASE_URL).strip()
-        model = _yandex_model("YANDEX_VISION_MODEL", "gemma-3-27b-it")
+        base_url = os.getenv("YANDEX_OCR_BASE_URL", DEFAULT_YANDEX_OCR_URL).strip()
+        model = os.getenv("YANDEX_OCR_MODEL", "handwritten").strip()
         return {
             "enabled": bool(api_key and folder_id and base_url and model),
             "mode": "yandex_aistudio",
