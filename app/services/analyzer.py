@@ -4,14 +4,26 @@ import math
 import json
 import os
 import re
+import base64
+from io import BytesIO
+from pathlib import Path
 from collections import Counter
 from typing import Any
 
 import requests
+from PIL import Image, ImageOps
+
+try:
+    import fitz  # PyMuPDF
+except Exception:  # pragma: no cover - optional dependency at runtime
+    fitz = None
 
 RUSSIAN_VOWELS = 'аеёиоуыэюяАЕЁИОУЫЭЮЯ'
-DEFAULT_GPT_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_ANALYSIS_MODEL = os.getenv("ANALYSIS_MODEL", "gpt-4.1-mini")
+DEFAULT_YANDEX_BASE_URL = "https://ai.api.cloud.yandex.net/v1"
+DEFAULT_ANALYSIS_MODEL = os.getenv("ANALYSIS_MODEL", "yandexgpt/latest")
+LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "0"))
+MAX_PAGES = int(os.getenv("OCR_MAX_PAGES", "5"))
+MAX_IMAGE_SIDE = int(os.getenv("OCR_MAX_IMAGE_SIDE", "1600"))
 
 
 def _is_service_message(text: str) -> bool:
@@ -145,6 +157,68 @@ def recommendations(words: list[str], repetitions: list[dict[str, Any]], issues_
     return tips
 
 
+def analyze_file_with_yandex(path: Path, student_name: str, work_type: str, grade_level: str, criteria: list[str]) -> tuple[str, dict[str, Any]]:
+    settings = _analysis_api_settings("yandex_aistudio")
+    if not settings["enabled"]:
+        analysis = _analysis_error(
+            "Yandex AI Studio is not configured. Add YANDEX_API_KEY and YANDEX_FOLDER_ID to .env.",
+            criteria,
+        )
+        return "", analysis
+
+    if path.suffix.lower() == ".txt":
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        return text, analyze_text_with_llm(text, student_name, work_type, grade_level, criteria, "yandex_aistudio")
+
+    try:
+        images = _file_to_images(path)
+        payload = {
+            "model": _yandex_model("YANDEX_VISION_MODEL", "gemma-3-27b-it"),
+            "temperature": 0.2,
+            "max_tokens": 5000,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an assistant for teachers checking student written work from images. "
+                        "Read the attached pages and return only valid JSON with this shape: "
+                        '{"recognized_text": str, "summary": str, '
+                        '"detected_issues": [{"type": str, "fragment": str, "hint": str}], '
+                        '"criteria_scores": [{"id": int, "criterion": str, "score": int, "explanation": str}], '
+                        '"recommendations": [str], "feedback": str, '
+                        '"metrics": {"words": int, "sentences": int, "readability": number, "repetitions": []}, "grade": int}. '
+                        "Scores and grade must be integers from 1 to 5. Write all user-facing text in Russian."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": _build_file_analysis_content(images, path.name, student_name, work_type, grade_level, criteria),
+                },
+            ],
+        }
+        headers = {
+            "Authorization": f"Bearer {settings['api_key']}",
+            "OpenAI-Project": settings["project"],
+            "Content-Type": "application/json",
+        }
+        response = requests.post(
+            f"{settings['base_url'].rstrip('/')}/chat/completions",
+            headers=headers,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            timeout=LLM_REQUEST_TIMEOUT or None,
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        result = _loads_json_content(content)
+        recognized_text = str(result.pop("recognized_text", "")).strip()
+        analysis = _normalize_llm_analysis(result, recognized_text, criteria)
+        return recognized_text, analysis
+    except Exception as exc:  # pragma: no cover
+        analysis = _analysis_error(f"Yandex one-request analysis failed: {exc}", criteria)
+        return "", analysis
+
+
 def analyze_text_with_llm(text: str, student_name: str, work_type: str, grade_level: str, criteria: list[str], llm_mode: str) -> dict[str, Any]:
     if _is_service_message(text):
         return analyze_text_local(text, student_name, work_type, grade_level, criteria)
@@ -152,7 +226,7 @@ def analyze_text_with_llm(text: str, student_name: str, work_type: str, grade_le
     settings = _analysis_api_settings(llm_mode)
     if not settings["enabled"]:
         return _analysis_error(
-            "LLM analysis is not configured. Add GPT_API_KEY for GPT API or local OPENAI_BASE_URL/OCR_PROVIDER for local LLM.",
+            "LLM analysis is not configured. Add YANDEX_API_KEY and YANDEX_FOLDER_ID for Yandex AI Studio or local OPENAI_BASE_URL/OCR_PROVIDER for local LLM.",
             criteria,
         )
 
@@ -179,19 +253,21 @@ def analyze_text_with_llm(text: str, student_name: str, work_type: str, grade_le
             },
         ],
     }
-    if settings["mode"] == "gpt_api":
+    if settings["mode"] == "yandex_aistudio":
         payload["response_format"] = {"type": "json_object"}
     headers = {
         "Authorization": f"Bearer {settings['api_key']}",
         "Content-Type": "application/json",
     }
+    if settings.get("project"):
+        headers["OpenAI-Project"] = settings["project"]
 
     try:
         response = requests.post(
             f"{settings['base_url'].rstrip('/')}/chat/completions",
             headers=headers,
             data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            timeout=180,
+            timeout=LLM_REQUEST_TIMEOUT or None,
         )
         response.raise_for_status()
         content = response.json()["choices"][0]["message"]["content"]
@@ -203,15 +279,18 @@ def analyze_text_with_llm(text: str, student_name: str, work_type: str, grade_le
 
 def _analysis_api_settings(llm_mode: str) -> dict[str, Any]:
     mode = (llm_mode or "local_llm").strip().lower()
-    if mode == "gpt_api":
-        api_key = _real_api_key(os.getenv("GPT_API_KEY") or os.getenv("OPENAI_API_KEY", ""))
-        base_url = os.getenv("GPT_BASE_URL", DEFAULT_GPT_BASE_URL).strip()
+    if mode == "yandex_aistudio":
+        api_key = _real_api_key(os.getenv("YANDEX_API_KEY", ""))
+        folder_id = os.getenv("YANDEX_FOLDER_ID", "").strip()
+        base_url = os.getenv("YANDEX_BASE_URL", DEFAULT_YANDEX_BASE_URL).strip()
+        model = _yandex_model("YANDEX_ANALYSIS_MODEL", "yandexgpt/latest")
         return {
-            "enabled": bool(api_key and base_url),
-            "mode": "gpt_api",
+            "enabled": bool(api_key and folder_id and base_url and model),
+            "mode": "yandex_aistudio",
             "base_url": base_url,
             "api_key": api_key,
-            "model": os.getenv("GPT_ANALYSIS_MODEL", os.getenv("ANALYSIS_MODEL", DEFAULT_ANALYSIS_MODEL)),
+            "project": folder_id,
+            "model": model,
         }
 
     provider = os.getenv("OCR_PROVIDER", "").strip().lower()
@@ -221,6 +300,7 @@ def _analysis_api_settings(llm_mode: str) -> dict[str, Any]:
         "mode": "local_llm",
         "base_url": base_url,
         "api_key": os.getenv("ANALYSIS_LOCAL_API_KEY", os.getenv("OPENAI_API_KEY", "EMPTY")),
+        "project": "",
         "model": os.getenv("ANALYSIS_LOCAL_MODEL", os.getenv("OCR_MODEL", DEFAULT_ANALYSIS_MODEL)),
     }
 
@@ -254,6 +334,75 @@ def _loads_json_content(content: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("LLM returned JSON that is not an object")
     return data
+
+
+def _build_file_analysis_content(images: list[Image.Image], file_name: str, student_name: str, work_type: str, grade_level: str, criteria: list[str]) -> list[dict[str, Any]]:
+    criteria_text = "\n".join(f"{index}. {criterion}" for index, criterion in enumerate(criteria, start=1))
+    if not criteria_text:
+        criteria_text = "1. Грамотность\n2. Логика изложения\n3. Полнота ответа"
+
+    content: list[dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": (
+                f"Файл: {file_name}\n"
+                f"Ученик: {student_name}\n"
+                f"Тип работы: {work_type}\n"
+                f"Класс: {grade_level}\n"
+                f"Критерии проверки:\n{criteria_text}\n\n"
+                "Сначала распознай весь текст на всех приложенных страницах. Затем сразу проверь работу по критериям. "
+                "Не делай отдельный OCR-ответ: верни один JSON с recognized_text и результатами проверки."
+            ),
+        }
+    ]
+
+    for index, image in enumerate(images, start=1):
+        content.append({"type": "text", "text": f"Страница {index} из {len(images)}"})
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{_image_to_base64(_prepare_image(image))}"},
+        })
+    return content
+
+
+def _file_to_images(path: Path) -> list[Image.Image]:
+    suffix = path.suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png"}:
+        with Image.open(path) as image:
+            return [image.convert("RGB")]
+
+    if suffix == ".pdf":
+        if fitz is None:
+            raise RuntimeError("Для PDF нужен PyMuPDF. Установите зависимости из requirements.txt.")
+        doc = fitz.open(path)
+        images: list[Image.Image] = []
+        try:
+            for index in range(min(len(doc), MAX_PAGES)):
+                page = doc.load_page(index)
+                pix = page.get_pixmap(dpi=220, alpha=False)
+                images.append(Image.open(BytesIO(pix.tobytes("png"))).convert("RGB"))
+        finally:
+            doc.close()
+        if images:
+            return images
+
+    raise RuntimeError(f"Неподдерживаемый формат файла: {path.suffix}")
+
+
+def _prepare_image(image: Image.Image) -> Image.Image:
+    image = ImageOps.exif_transpose(image).convert("RGB")
+    width, height = image.size
+    longest = max(width, height)
+    if longest > MAX_IMAGE_SIDE:
+        scale = MAX_IMAGE_SIDE / float(longest)
+        image = image.resize((max(1, int(width * scale)), max(1, int(height * scale))))
+    return image
+
+
+def _image_to_base64(image: Image.Image) -> str:
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
 def _normalize_llm_analysis(result: dict[str, Any], text: str, criteria: list[str]) -> dict[str, Any]:
@@ -306,6 +455,17 @@ def _real_api_key(value: str) -> str:
     return "" if value.upper() == "EMPTY" else value
 
 
+def _yandex_model(env_name: str, default_slug: str) -> str:
+    model = os.getenv(env_name, "").strip()
+    if model:
+        return model
+
+    folder_id = os.getenv("YANDEX_FOLDER_ID", "").strip()
+    if not folder_id:
+        return ""
+    return f"gpt://{folder_id}/{default_slug}"
+
+
 def _analysis_error(error: str, criteria: list[str]) -> dict[str, Any]:
     return {
         "summary": "Не удалось выполнить проверку через LLM.",
@@ -323,7 +483,7 @@ def _analysis_error(error: str, criteria: list[str]) -> dict[str, Any]:
 
 def analyze_text(text: str, student_name: str, work_type: str, grade_level: str, criteria: list[str], llm_mode: str = "local_llm") -> dict[str, Any]:
     mode = (llm_mode or "local_llm").strip().lower()
-    if mode in {"local_llm", "gpt_api"}:
+    if mode in {"local_llm", "yandex_aistudio"}:
         return analyze_text_with_llm(
             text,
             student_name=student_name,

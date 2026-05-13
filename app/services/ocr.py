@@ -21,9 +21,9 @@ load_env()
 
 MAX_PAGES = int(os.getenv("OCR_MAX_PAGES", "5"))
 MAX_IMAGE_SIDE = int(os.getenv("OCR_MAX_IMAGE_SIDE", "1600"))
+LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "0"))
 DEFAULT_OCR_MODEL = os.getenv("OCR_MODEL", "gpt-4.1-mini")
-DEFAULT_GPT_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_GPT_VISION_MODEL = os.getenv("GPT_VISION_MODEL", "gpt-4.1-mini")
+DEFAULT_YANDEX_BASE_URL = "https://ai.api.cloud.yandex.net/v1"
 
 
 def extract_text_from_file(path: Path, llm_mode: str = "local_llm") -> str:
@@ -126,6 +126,8 @@ def _run_vision_ocr(image: Image.Image, page_number: int, total_pages: int, file
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    if settings.get("project"):
+        headers["OpenAI-Project"] = str(settings["project"])
     payload = {
         "model": model,
         "temperature": 0,
@@ -164,7 +166,7 @@ def _run_vision_ocr(image: Image.Image, page_number: int, total_pages: int, file
         f"{base_url}/chat/completions",
         headers=headers,
         data=json.dumps(payload),
-        timeout=180,
+        timeout=LLM_REQUEST_TIMEOUT or None,
     )
     response.raise_for_status()
     data = response.json()
@@ -205,15 +207,18 @@ def _image_to_base64(image: Image.Image) -> str:
 
 def _ocr_api_settings(llm_mode: str) -> dict[str, str | bool]:
     mode = (llm_mode or "local_llm").strip().lower()
-    if mode == "gpt_api":
-        api_key = _real_api_key(os.getenv("GPT_API_KEY") or os.getenv("OPENAI_API_KEY", ""))
-        base_url = os.getenv("GPT_BASE_URL", DEFAULT_GPT_BASE_URL).strip()
+    if mode == "yandex_aistudio":
+        api_key = _real_api_key(os.getenv("YANDEX_API_KEY", ""))
+        folder_id = os.getenv("YANDEX_FOLDER_ID", "").strip()
+        base_url = os.getenv("YANDEX_BASE_URL", DEFAULT_YANDEX_BASE_URL).strip()
+        model = _yandex_model("YANDEX_VISION_MODEL", "gemma-3-27b-it")
         return {
-            "enabled": bool(api_key and base_url),
-            "mode": "gpt_api",
+            "enabled": bool(api_key and folder_id and base_url and model),
+            "mode": "yandex_aistudio",
             "base_url": base_url,
             "api_key": api_key,
-            "model": os.getenv("GPT_VISION_MODEL", DEFAULT_GPT_VISION_MODEL),
+            "project": folder_id,
+            "model": model,
         }
 
     provider = os.getenv("OCR_PROVIDER", "").strip().lower()
@@ -223,6 +228,7 @@ def _ocr_api_settings(llm_mode: str) -> dict[str, str | bool]:
         "mode": "local_llm",
         "base_url": base_url,
         "api_key": os.getenv("OPENAI_API_KEY", "EMPTY"),
+        "project": "",
         "model": os.getenv("OCR_MODEL", DEFAULT_OCR_MODEL),
     }
 
@@ -230,6 +236,17 @@ def _ocr_api_settings(llm_mode: str) -> dict[str, str | bool]:
 def _real_api_key(value: str) -> str:
     value = (value or "").strip()
     return "" if value.upper() == "EMPTY" else value
+
+
+def _yandex_model(env_name: str, default_slug: str) -> str:
+    model = os.getenv(env_name, "").strip()
+    if model:
+        return model
+
+    folder_id = os.getenv("YANDEX_FOLDER_ID", "").strip()
+    if not folder_id:
+        return ""
+    return f"gpt://{folder_id}/{default_slug}"
 
 
 def _ocr_error_message(path: Path, error: str) -> str:

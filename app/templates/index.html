@@ -35,17 +35,17 @@
     <fieldset class="mode-picker">
       <legend>Режим проверки</legend>
       <label class="mode-option">
-        <input type="radio" name="llm_mode" value="local_llm" checked>
+        <input type="radio" name="llm_mode" value="local_llm">
         <span>
           <strong>Локальная LLM</strong>
           <small>OCR и проверка идут через локальный OpenAI-compatible endpoint</small>
         </span>
       </label>
       <label class="mode-option">
-        <input type="radio" name="llm_mode" value="gpt_api">
+        <input type="radio" name="llm_mode" value="yandex_aistudio" checked>
         <span>
-          <strong>GPT API</strong>
-          <small>OCR и проверка отправляются в ChatGPT/OpenAI API</small>
+          <strong>Yandex AI Studio</strong>
+          <small>Один запрос в Yandex AI Studio сразу распознаёт и проверяет работу</small>
         </span>
       </label>
     </fieldset>
@@ -90,8 +90,8 @@
     <p><strong>Endpoint:</strong> {{ ocr.endpoint }}</p>
     <p><strong>Local analysis model:</strong> {{ llm.local_model }}</p>
     <p><strong>Local analysis endpoint:</strong> {{ llm.local_endpoint }}</p>
-    <p><strong>GPT analysis model:</strong> {{ llm.gpt_model }}</p>
-    <p><strong>GPT endpoint:</strong> {{ llm.gpt_endpoint }}</p>
+    <p><strong>Yandex analysis model:</strong> {{ llm.yandex_model }}</p>
+    <p><strong>Yandex endpoint:</strong> {{ llm.yandex_endpoint }}</p>
     <p class="muted">
       {% if ocr.enabled %}
         Распознавание фото и PDF выполняется vision-LLM через OpenAI-compatible API.

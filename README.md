@@ -31,7 +31,20 @@ OPENAI_API_KEY=EMPTY
 OCR_MODEL=allenai/olmOCR-7B-0225-preview
 OCR_MAX_PAGES=5
 OCR_MAX_IMAGE_SIDE=1024
+LLM_REQUEST_TIMEOUT=0
+
+ANALYSIS_LOCAL_BASE_URL=http://127.0.0.1:3000/v1
+ANALYSIS_LOCAL_API_KEY=EMPTY
+ANALYSIS_LOCAL_MODEL=local-model
+
+YANDEX_BASE_URL=https://ai.api.cloud.yandex.net/v1
+YANDEX_API_KEY=
+YANDEX_FOLDER_ID=
+YANDEX_VISION_MODEL=
+YANDEX_ANALYSIS_MODEL=
 ```
+
+В режиме Yandex AI Studio приложение отправляет один vision-запрос: модель получает страницы работы и сразу возвращает JSON с распознанным текстом, оценкой, проблемными местами и рекомендациями.
 
 ## Где находится интеграция
 
