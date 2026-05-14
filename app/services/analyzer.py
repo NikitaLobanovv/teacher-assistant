@@ -99,21 +99,15 @@ def estimate_readability(words: list[str], sentences: list[str]) -> float:
 
 def score_text(words: list[str], sentences: list[str], issues_count: int, criteria_count: int) -> int:
     if not words:
-        return 1
+        return 3
     base = 5.0
-    if len(words) < 40:
-        base -= 1.0
-    if len(sentences) < 3:
-        base -= 0.5
-    base -= min(2.5, issues_count * 0.15)
-    if criteria_count >= 3 and len(words) > 80:
-        base += 0.5
+    base -= min(2.0, issues_count * 0.2)
     return max(1, min(5, int(round(base))))
 
 
 def criterion_breakdown(criteria: list[str], words: list[str], sentences: list[str], issues_count: int) -> list[dict[str, Any]]:
     if not criteria:
-        criteria = ['Грамотность', 'Логика изложения', 'Полнота ответа']
+        criteria = ['Наличие явных ошибок', 'Корректность ответа или решения', 'Аккуратность оформления']
 
     items: list[dict[str, Any]] = []
     for idx, criterion in enumerate(criteria, start=1):
@@ -145,15 +139,13 @@ def criterion_breakdown(criteria: list[str], words: list[str], sentences: list[s
 
 def recommendations(words: list[str], repetitions: list[dict[str, Any]], issues_count: int) -> list[str]:
     tips = []
-    if len(words) < 50:
-        tips.append('Расширьте ответ: добавьте аргументы, примеры или пояснения.')
     if issues_count > 0:
-        tips.append('Перепроверьте орфографию и пунктуацию в отмеченных фрагментах.')
+        tips.append('Перепроверьте отмеченные места: возможно, там есть ошибка в записи, вычислении или формулировке.')
     if repetitions:
         repeated = ', '.join(item['word'] for item in repetitions[:3])
-        tips.append(f'Сократите повторы слов: {repeated}. Подберите синонимы.')
+        tips.append(f'Проверьте повторяющиеся фрагменты: {repeated}. Возможно, часть записи продублирована или распознана неточно.')
     if not tips:
-        tips.append('Работа выглядит цельной. Можно усилить текст примерами и более точными формулировками.')
+        tips.append('Явных ошибок не найдено. Можно только аккуратнее оформить запись, если это требуется заданием.')
     return tips
 
 
@@ -181,14 +173,16 @@ def analyze_file_with_yandex(path: Path, student_name: str, work_type: str, grad
                 {
                     "role": "system",
                     "content": (
-                        "You are an assistant for teachers checking student written work from images. "
+                        "You are an assistant for teachers checking student work from images. "
+                        "The work may contain text, mathematical calculations, formulas, short answers, tables, or mixed notes. "
+                        "Do not check it too strictly; focus only on clear, meaningful mistakes. "
                         "Read the attached pages and return only valid JSON with this shape: "
                         '{"recognized_text": str, "summary": str, '
                         '"detected_issues": [{"type": str, "fragment": str, "hint": str}], '
                         '"criteria_scores": [{"id": int, "criterion": str, "score": int, "explanation": str}], '
                         '"recommendations": [str], "feedback": str, '
                         '"metrics": {"words": int, "sentences": int, "readability": number, "repetitions": []}, "grade": int}. '
-                        "Scores and grade must be integers from 1 to 5. Write all user-facing text in Russian."
+                        "Scores and grade must be integers from 1 to 5. If there are no clear mistakes, give a high score. Write all user-facing text in Russian."
                     ),
                 },
                 {
@@ -238,13 +232,17 @@ def analyze_text_with_llm(text: str, student_name: str, work_type: str, grade_le
             {
                 "role": "system",
                 "content": (
-                    "You are an assistant for teachers checking student written work. "
+                    "You are an assistant for teachers checking student work. "
+                    "The work may contain text, mathematical calculations, formulas, short answers, tables, or mixed notes. "
+                    "Do not check it too strictly and do not require essay-style structure if the task is not an essay. "
+                    "Focus only on clear, meaningful mistakes: wrong calculations, incorrect final answers, obvious spelling errors, missing required answer parts, or contradictions. "
+                    "If a fragment is unclear because of OCR quality, mark it as uncertain instead of treating it as a student mistake. "
                     "Return only valid JSON with this shape: "
                     '{"summary": str, "detected_issues": [{"type": str, "fragment": str, "hint": str}], '
                     '"criteria_scores": [{"id": int, "criterion": str, "score": int, "explanation": str}], '
                     '"recommendations": [str], "feedback": str, '
                     '"metrics": {"words": int, "sentences": int, "readability": number, "repetitions": []}, "grade": int}. '
-                    "Scores and grade must be integers from 1 to 5. Write all user-facing text in Russian."
+                    "Scores and grade must be integers from 1 to 5. If there are no clear mistakes, give a high score. Write all user-facing text in Russian."
                 ),
             },
             {
@@ -315,8 +313,13 @@ def _build_analysis_prompt(text: str, student_name: str, work_type: str, grade_l
         f"Тип работы: {work_type}\n"
         f"Класс: {grade_level}\n"
         f"Критерии проверки:\n{criteria_text}\n\n"
-        "Проверь работу по критериям, найди орфографические, пунктуационные, логические и содержательные проблемы. "
-        "Дай итоговую оценку от 1 до 5 и краткую обратную связь для ученика.\n\n"
+        "Проверь работу спокойно и не слишком дотошно. В работе может быть не только связный текст, "
+        "но и математические вычисления, формулы, короткие ответы, таблицы или черновые записи. "
+        "Нужно найти только явные ошибки: неверные вычисления, неправильные ответы, пропущенные важные части решения, "
+        "очевидные орфографические ошибки или противоречия. Не снижай оценку за отсутствие литературного стиля, "
+        "развёрнутых аргументов или структуры сочинения, если это не требуется типом работы. "
+        "Если фрагмент плохо распознан OCR, укажи неуверенность, но не считай это ошибкой ученика. "
+        "Дай итоговую оценку от 1 до 5 и краткую доброжелательную обратную связь.\n\n"
         f"Текст работы:\n{text[:12000]}"
     )
 
@@ -350,7 +353,9 @@ def _build_file_analysis_content(images: list[Image.Image], file_name: str, stud
                 f"Тип работы: {work_type}\n"
                 f"Класс: {grade_level}\n"
                 f"Критерии проверки:\n{criteria_text}\n\n"
-                "Сначала распознай весь текст на всех приложенных страницах. Затем сразу проверь работу по критериям. "
+                "Сначала распознай весь текст на всех приложенных страницах. Затем спокойно проверь работу по критериям. "
+                "Учитывай, что это могут быть вычисления, формулы, короткие ответы или черновые записи. "
+                "Ищи только явные ошибки, а не недочёты стиля. "
                 "Не делай отдельный OCR-ответ: верни один JSON с recognized_text и результатами проверки."
             ),
         }
@@ -527,15 +532,15 @@ def analyze_text_local(text: str, student_name: str, work_type: str, grade_level
     summary = (
         f'Проверена работа ученика {student_name}. '
         f'Тип работы: {work_type}. '
-        f'Обнаружено проблемных мест: {len(issues)}. '
+        f'Обнаружено явных проблемных мест: {len(issues)}. '
         f'Предварительная итоговая оценка: {grade}/5.'
     )
 
     feedback = (
         f'Работа по типу "{work_type}" для уровня {grade_level} класса проверена автоматически. '
-        f'Сильные стороны: {"достаточный объём текста" if len(words) > 70 else "понятная основная мысль"}. '
-        f'Зоны роста: {"пунктуация и структура предложений" if len(issues) else "углубление аргументации"}. '
-        'Итоговая рекомендация: доработать отмеченные места и затем повторно отправить работу на проверку.'
+        'Проверка учитывает, что в работе могут быть вычисления, формулы и короткие ответы. '
+        f'Зоны роста: {"проверить отмеченные фрагменты" if len(issues) else "явных ошибок не найдено"}. '
+        'Итоговая рекомендация: исправить только действительно ошибочные места.'
     )
 
     return {
