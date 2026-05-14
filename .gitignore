@@ -1,0 +1,10 @@
+.env
+.env.*
+
+app/data/
+app/uploads/
+app/scans/
+
+__pycache__/
+*.py[cod]
+*.log

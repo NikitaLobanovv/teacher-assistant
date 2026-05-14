@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / 'data' / 'submissions.json'
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+HISTORY_LIMIT = int(os.getenv('HISTORY_LIMIT', '20'))
 
 
 
@@ -25,12 +27,15 @@ def _save(items: list[dict[str, Any]]) -> None:
 def save_submission(submission: dict[str, Any]) -> None:
     items = _load()
     items.insert(0, submission)
+    if HISTORY_LIMIT > 0:
+        items = items[:HISTORY_LIMIT]
     _save(items)
 
 
 
 def list_submissions() -> list[dict[str, Any]]:
-    return _load()
+    items = _load()
+    return items[:HISTORY_LIMIT] if HISTORY_LIMIT > 0 else items
 
 
 
