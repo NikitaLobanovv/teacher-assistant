@@ -33,15 +33,14 @@ def is_image_file(filename: str) -> bool:
 
 def current_ocr_settings(llm_mode: str = 'local_llm') -> dict:
     if llm_mode == 'yandex_aistudio':
-        base_url = os.getenv('YANDEX_BASE_URL', 'https://ai.api.cloud.yandex.net/v1').strip()
         api_key = os.getenv('YANDEX_API_KEY', '').strip()
         folder_id = os.getenv('YANDEX_FOLDER_ID', '').strip()
-    return {
-        'provider': 'yandex_aistudio',
-        'model': os.getenv('YANDEX_OCR_MODEL', 'handwritten'),
-        'endpoint': os.getenv('YANDEX_OCR_BASE_URL', 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText').strip(),
-        'enabled': bool(api_key and api_key.upper() != 'EMPTY' and folder_id),
-    }
+        return {
+            'provider': 'yandex_aistudio',
+            'model': os.getenv('YANDEX_OCR_MODEL', 'handwritten'),
+            'endpoint': os.getenv('YANDEX_OCR_BASE_URL', 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText').strip(),
+            'enabled': bool(api_key and api_key.upper() != 'EMPTY' and folder_id),
+        }
 
     provider = (os.getenv('OCR_PROVIDER', 'disabled') or 'disabled').strip()
     base_url = os.getenv('OPENAI_BASE_URL', '').strip()
